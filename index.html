@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Semester Project - Solar System</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; }
+        canvas { display: block; }
+        #ui {
+            position: absolute; top: 20px; left: 20px; color: #00d2ff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            pointer-events: none; text-shadow: 1px 1px 2px #000;
+            background: rgba(0, 0, 0, 0.3); padding: 10px; border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+   
+
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // 1. ENGINE SETUP
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    document.body.appendChild(renderer.domElement);
+
+    camera.position.set(-180, 120, 350);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    // 2. ARROW KEY ZOOM LOGIC
+    const zoomAmount = 15;
+    window.addEventListener('keydown', (e) => {
+        const vector = new THREE.Vector3();
+        camera.getWorldDirection(vector);
+        if (e.key === "ArrowUp") camera.position.addScaledVector(vector, zoomAmount);
+        if (e.key === "ArrowDown") camera.position.addScaledVector(vector, -zoomAmount);
+    });
+
+    // 3. FULL SCREEN TOGGLE (Double Click)
+    window.addEventListener('dblclick', () => {
+        const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
+
+        if (!fullscreenElement) {
+            if (renderer.domElement.requestFullscreen) {
+                renderer.domElement.requestFullscreen();
+            } else if (renderer.domElement.webkitRequestFullscreen) {
+                renderer.domElement.webkitRequestFullscreen();
+            }
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            }
+        }
+    });
+
+    // 4. LIGHTING
+    const sunLight = new THREE.PointLight(0xffffff, 20000, 2000);
+    scene.add(sunLight);
+    const ambient = new THREE.AmbientLight(0x404040, 2);
+    scene.add(ambient);
+
+    // 5. TEXTURE LOADING
+    const loader = new THREE.TextureLoader();
+    const path = './texture/';
+
+    // Background Stars
+    const starGeo = new THREE.SphereGeometry(950, 64, 64);
+    const starMat = new THREE.MeshBasicMaterial({ 
+        map: loader.load(path + '2k_stars_milky_way.jpg'), 
+        side: THREE.BackSide 
+    });
+    scene.add(new THREE.Mesh(starGeo, starMat));
+
+    // 6. CELESTIAL BODIES
+    const planets = [];
+
+    function createPlanet(size, texture, distance, speed) {
+        const mesh = new THREE.Mesh(
+            new THREE.SphereGeometry(size, 32, 32),
+            new THREE.MeshStandardMaterial({ map: loader.load(path + texture) })
+        );
+        const pivot = new THREE.Object3D();
+        scene.add(pivot);
+        pivot.add(mesh);
+        mesh.position.x = distance;
+        return { mesh, pivot, speed };
+    }
+
+    // THE SUN
+    const sun = new THREE.Mesh(
+        new THREE.SphereGeometry(30, 64, 64),
+        new THREE.MeshBasicMaterial({ map: loader.load(path + '2k_sun.jpg') })
+    );
+    scene.add(sun);
+
+    // THE 9 PLANETS
+    planets.push(createPlanet(4, '2k_mercury.jpg', 60, 0.04));
+    planets.push(createPlanet(8, '2k_venus_atmosphere.jpg', 90, 0.015));
+    
+    // Earth + Moon
+    const earthData = createPlanet(9, '2k_earth_daymap.jpg', 130, 0.01);
+    planets.push(earthData);
+    const moon = new THREE.Mesh(
+        new THREE.SphereGeometry(2.2, 32, 32),
+        new THREE.MeshStandardMaterial({ map: loader.load(path + '2k_moon.jpg') })
+    );
+    earthData.mesh.add(moon);
+    moon.position.x = 18;
+
+    planets.push(createPlanet(6, '2k_mars.jpg', 170, 0.008));
+    planets.push(createPlanet(20, '2k_jupiter.jpg', 240, 0.004));
+
+    // Saturn + Ring
+    const saturnData = createPlanet(16, '2k_saturn.jpg', 310, 0.002);
+    const ringGeo = new THREE.RingGeometry(20, 35, 64);
+    const pos = ringGeo.attributes.position;
+    const uv = ringGeo.attributes.uv;
+    for (let i = 0; i < pos.count; i++) {
+        const v3 = new THREE.Vector3().fromBufferAttribute(pos, i);
+        uv.setXY(i, (v3.length() - 20) / (35 - 20), 0); 
+    }
+    const ringMat = new THREE.MeshBasicMaterial({ 
+        map: loader.load(path + '2k_saturn_ring_alpha.png'), 
+        side: THREE.DoubleSide, 
+        transparent: true 
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = Math.PI / 2;
+    saturnData.mesh.add(ring);
+    planets.push(saturnData);
+
+    planets.push(createPlanet(11, '2k_uranus.jpg', 380, 0.0015));
+    planets.push(createPlanet(11, '2k_neptune.jpg', 440, 0.001));
+
+    // 
+
+    // 7. ANIMATION LOOP
+    function animate() {
+        requestAnimationFrame(animate);
+        sun.rotateY(0.002);
+        planets.forEach(p => {
+            p.pivot.rotateY(p.speed); 
+            p.mesh.rotateY(0.015);    
+        });
+        moon.rotateY(0.02);
+        controls.update();
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+</script>
+</body>
+</html>
