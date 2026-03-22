@@ -16,7 +16,10 @@
     </style>
 </head>
 <body>
-   
+    <div id="ui">
+        <b>SOLAR SYSTEM PRACTICAL</b><br>
+        ↑ / ↓ Arrow Keys: Zoom | Double Click: Fullscreen
+    </div>
 
 <script type="importmap">
     {
@@ -55,45 +58,48 @@
 
     // 3. FULL SCREEN TOGGLE (Double Click)
     window.addEventListener('dblclick', () => {
-        const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
-
-        if (!fullscreenElement) {
-            if (renderer.domElement.requestFullscreen) {
-                renderer.domElement.requestFullscreen();
-            } else if (renderer.domElement.webkitRequestFullscreen) {
-                renderer.domElement.webkitRequestFullscreen();
-            }
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen();
         } else {
-            if (document.exitFullscreen) {
-                document.exitFullscreen();
-            } else if (document.webkitExitFullscreen) {
-                document.webkitExitFullscreen();
-            }
+            document.exitFullscreen();
         }
     });
 
     // 4. LIGHTING
     const sunLight = new THREE.PointLight(0xffffff, 20000, 2000);
     scene.add(sunLight);
-    const ambient = new THREE.AmbientLight(0x404040, 2);
-    scene.add(ambient);
+    scene.add(new THREE.AmbientLight(0x404040, 2));
 
     // 5. TEXTURE LOADING
     const loader = new THREE.TextureLoader();
     const path = './texture/';
 
-    // Background Stars
-    const starGeo = new THREE.SphereGeometry(950, 64, 64);
-    const starMat = new THREE.MeshBasicMaterial({ 
-        map: loader.load(path + '2k_stars_milky_way.jpg'), 
-        side: THREE.BackSide 
-    });
-    scene.add(new THREE.Mesh(starGeo, starMat));
+    const starField = new THREE.Mesh(
+        new THREE.SphereGeometry(950, 64, 64),
+        new THREE.MeshBasicMaterial({ map: loader.load(path + '2k_stars_milky_way.jpg'), side: THREE.BackSide })
+    );
+    scene.add(starField);
 
-    // 6. CELESTIAL BODIES
+    // 6. HELPER FUNCTION FOR ORBIT LINES
+    function createOrbitLine(radius) {
+        const segments = 128; // Higher number = smoother circle
+        const points = [];
+        for (let i = 0; i <= segments; i++) {
+            const theta = (i / segments) * Math.PI * 2;
+            points.push(new THREE.Vector3(Math.cos(theta) * radius, 0, Math.sin(theta) * radius));
+        }
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const material = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 });
+        const line = new THREE.Line(geometry, material);
+        scene.add(line);
+    }
+
+    // 7. HELPER FUNCTION FOR PLANETS
     const planets = [];
-
     function createPlanet(size, texture, distance, speed) {
+        // Draw the visual orbit path line
+        createOrbitLine(distance);
+
         const mesh = new THREE.Mesh(
             new THREE.SphereGeometry(size, 32, 32),
             new THREE.MeshStandardMaterial({ map: loader.load(path + texture) })
@@ -112,7 +118,7 @@
     );
     scene.add(sun);
 
-    // THE 9 PLANETS
+    // 8. INITIALIZE 9 PLANETS
     planets.push(createPlanet(4, '2k_mercury.jpg', 60, 0.04));
     planets.push(createPlanet(8, '2k_venus_atmosphere.jpg', 90, 0.015));
     
@@ -138,12 +144,7 @@
         const v3 = new THREE.Vector3().fromBufferAttribute(pos, i);
         uv.setXY(i, (v3.length() - 20) / (35 - 20), 0); 
     }
-    const ringMat = new THREE.MeshBasicMaterial({ 
-        map: loader.load(path + '2k_saturn_ring_alpha.png'), 
-        side: THREE.DoubleSide, 
-        transparent: true 
-    });
-    const ring = new THREE.Mesh(ringGeo, ringMat);
+    const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ map: loader.load(path + '2k_saturn_ring_alpha.png'), side: THREE.DoubleSide, transparent: true }));
     ring.rotation.x = Math.PI / 2;
     saturnData.mesh.add(ring);
     planets.push(saturnData);
@@ -151,9 +152,12 @@
     planets.push(createPlanet(11, '2k_uranus.jpg', 380, 0.0015));
     planets.push(createPlanet(11, '2k_neptune.jpg', 440, 0.001));
 
-    // 
+    // Pluto (Planet 9)
+    const pluto = createPlanet(3, '2k_mercury.jpg', 490, 0.0007);
+    pluto.mesh.material.color.setHex(0x998888); 
+    planets.push(pluto);
 
-    // 7. ANIMATION LOOP
+    // 9. ANIMATION LOOP
     function animate() {
         requestAnimationFrame(animate);
         sun.rotateY(0.002);
